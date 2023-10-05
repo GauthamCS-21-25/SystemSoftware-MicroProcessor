@@ -1,2 +1,2 @@
 # SystemSoftware-MicroProcessor-
-System Software and MicroProcessor Semester 5 (2023 September - 2024 February) - System Software &amp; MicroProcessor LAB PROGRAMS
+Semester 5 (2023 September - 2024 February) - System Software &amp; MicroProcessor LAB PROGRAMS
