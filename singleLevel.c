@@ -7,7 +7,7 @@
 
 #define SIZE 20
 
-char path[]="/home/S5CSB/GauthamCSudheer";
+char path[]="/home/csgautham/Programming/SSMP_LAB";
 char dirpath[100];
 struct stat st = {0};
 
