@@ -2,81 +2,104 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct memory {
-	char addr[25];
-	char code[25];
-} m[50];
+// Define a structure to hold address and code information
+struct MemoryEntry {
+    char address[25];
+    char code[25];
+} memoryEntries[50];
 
-void main() {
-	FILE *object = fopen("al_input.txt","r");
-	int ptr = 0;
-	char RECORD[50], PROG[25], STARTADDR[25], LENGTH[25] = "", LOCCTR[25] = "", OBJECT[5][25] = {"","","","",""}, SIZE[25] = "";
-	
-	while(feof(object)!=1){
-		fscanf(object, "%s", RECORD);
+// Function to process the object file and extract address and code
+void processObjectFile(FILE *objectFile) {
+    int memoryPointer = 0; // Pointer for the memory array
+    char record[50], programName[25] = "", startAddress[25] = "", programLength[25] = "", currentAddress[25] = "", objectCode[5][25] = {"", "", "", "", ""}, recordSize[25] = "";
 
-		if(RECORD[0] == 'H') {
-			int count = 0; 
-			for(int i = 2; RECORD[i] != '\0'; i++) {
-				char str[2] = "\0"; 
-				str[0] = RECORD[i];
-				if(RECORD[i] != '^') {
-					if(count == 0) strcat(PROG, str);
-					else if(count == 1) strcat(STARTADDR, str);				
-					else if(count == 2) strcat(LENGTH, str);
-				} else {
-					count++;
-				}
-			}	
-			strcat(PROG, "\0");
-			strcat(STARTADDR, "\0");
-			strcat(LENGTH, "\0");
-		
-	
-		} else if(RECORD[0] == 'T') {
-			strcpy(LOCCTR, "");
-			strcpy(SIZE, "");
-			for(int i = 0; i < 5; i++) {
-				strcpy(OBJECT[i], "");
-			}
-			int count = 0, i = 2;
-			do {
-				char str[2] = "\0"; 
-				str[0] = RECORD[i];
-				if(RECORD[i] != '^' && RECORD[i] != '\0') {
-					if(count == 0) strcat(LOCCTR, str);
-					else if(count == 1) strcat(SIZE, str);				
-					else strcat(OBJECT[count - 2], str);
-				} else {
-					if (count >= 2) {
-						sprintf(m[ptr].addr, "%x", (int)strtol(LOCCTR, NULL, 16));
-						strcpy(m[ptr].code, OBJECT[count - 2]);
-						sprintf(LOCCTR, "%x", (int)strtol(LOCCTR, NULL, 16) + 3);
-						//printf("\naddr: %s code: %s", m[ptr].addr, m[ptr].code);
-						ptr++;
-					}
-					count++;
-				}
-				i++;
-			} while(RECORD[i] != '\0');
-	
-			strcpy(m[ptr].addr, LOCCTR);
-			strcpy(m[ptr].code, OBJECT[count - 2]);
-			sprintf(LOCCTR, "%x", (int)strtol(LOCCTR, NULL, 16) + 3);
-			//printf("\naddr: %s code: %s\n", m[ptr].addr, m[ptr].code);
-			ptr++;
+    // Read records from the object file
+    while (feof(objectFile) != 1) {
+        fscanf(objectFile, "%s", record);
 
-		} else if(RECORD[0] == 'E') {
-			break;
-		}
-		
-	}
-	printf("\n");
-	for(int i = 0; i < ptr; i++) {
-		printf("\n%s : %s",m[i].addr, m[i].code);
-	}
-	
-	fclose(object);
-	
-	printf("\n");
+        if (record[0] == 'H') {
+            // Process header record
+            int fieldCount = 0;
+            for (int i = 2; record[i] != '\0'; i++) {
+                char str[2] = "\0";
+                str[0] = record[i];
+                if (record[i] != '^') {
+                    if (fieldCount == 0)
+                        strcat(programName, str);
+                    else if (fieldCount == 1)
+                        strcat(startAddress, str);
+                    else if (fieldCount == 2)
+                        strcat(programLength, str);
+                } else {
+                    fieldCount++;
+                }
+            }
+            strcat(programName, "\0");
+            strcat(startAddress, "\0");
+            strcat(programLength, "\0");
+        } else if (record[0] == 'T') {
+            // Process text record
+            strcpy(currentAddress, "");
+            strcpy(recordSize, "");
+            for (int i = 0; i < 5; i++) {
+                strcpy(objectCode[i], "");
+            }
+            int fieldCount = 0, i = 2;
+            do {
+                char str[2] = "\0";
+                str[0] = record[i];
+                if (record[i] != '^' && record[i] != '\0') {
+                    if (fieldCount == 0)
+                        strcat(currentAddress, str);
+                    else if (fieldCount == 1)
+                        strcat(recordSize, str);
+                    else
+                        strcat(objectCode[fieldCount - 2], str);
+                } else {
+                    if (fieldCount >= 2) {
+                        // Store the memory entry
+                        sprintf(memoryEntries[memoryPointer].address, "%x", (int)strtol(currentAddress, NULL, 16));
+                        strcpy(memoryEntries[memoryPointer].code, objectCode[fieldCount - 2]);
+                        sprintf(currentAddress, "%x", (int)strtol(currentAddress, NULL, 16) + 3);
+                        memoryPointer++;
+                    }
+                    fieldCount++;
+                }
+                i++;
+            } while (record[i] != '\0');
+
+            // Store the last memory entry in the text record
+            strcpy(memoryEntries[memoryPointer].address, currentAddress);
+            strcpy(memoryEntries[memoryPointer].code, objectCode[fieldCount - 2]);
+            sprintf(currentAddress, "%x", (int)strtol(currentAddress, NULL, 16) + 3);
+            memoryPointer++;
+        } else if (record[0] == 'E') {
+            break; // End of the program
+        }
+    }
+
+    // Print the memory entries
+    printf("\nMemory Entries:\n");
+    for (int i = 0; i < memoryPointer; i++) {
+        printf("%s : %s\n", memoryEntries[i].address, memoryEntries[i].code);
+    }
 }
+
+int main() {
+    // Open the object file for reading
+    FILE *objectFile = fopen("al_input.txt", "r");
+
+    if (objectFile == NULL) {
+        fprintf(stderr, "Error opening the object file.\n");
+        return 1; // Exit with an error code
+    }
+
+    // Process the object file
+    processObjectFile(objectFile);
+
+    // Close the object file
+    fclose(objectFile);
+
+    return 0; // Exit successfully
+}
+

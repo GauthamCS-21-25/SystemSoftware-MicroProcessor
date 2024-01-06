@@ -1,131 +1,157 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
-char OP[3][25], ADDR[3][25];
-int count = 0;
+// Arrays to store opcode and corresponding addresses for three instructions
+char opcodeBuffer[3][25], addressBuffer[3][25];
+int bufferIndex = 0; // Counter to keep track of the position in opcodeBuffer and addressBuffer arrays
 
-int searchSYM(char sym1[], int LOCCTR) {
-	char flag = -1;
-	char sym[25], addr[25];
-	FILE *symtab = fopen("symtab.txt","r");
-	
-	while(feof(symtab)!=1){
-		fscanf(symtab, "%s %s\n", sym, addr);	
-		if(strcmp(sym1, sym) == 0) {
-			strcpy(ADDR[count], addr);
-			return (int)strtol(addr, NULL, 16);
-		}
-	}
-	return flag;
-	fclose(symtab);
+// Function to search for a symbol in the symbol table
+int searchSymbol(char symbol[], int locationCounter) {
+    char notFound = -1;
+    char sym[25], addr[25];
+    FILE *symbolTable = fopen("symtab.txt", "r");
+
+    while (fscanf(symbolTable, "%s %s", sym, addr) != EOF) {
+        if (strcmp(symbol, sym) == 0) {
+            // Store the address in the address buffer
+            strcpy(addressBuffer[bufferIndex], addr);
+            return (int)strtol(addr, NULL, 16);
+        }
+    }
+
+    return notFound;
+    fclose(symbolTable);
 }
 
-int searchOP(char opcode[], int LOCCTR) {
-	char flag = -1;
-	char op[25], code[25];
-	FILE *optab = fopen("optab.txt","r");
-	
-	while(feof(optab)!=1){
-		fscanf(optab, "%s %s\n", op, code);		
-		if(strcmp(op, opcode) == 0) {
-			strcpy(OP[count],code);
-			return (int)strtol(code, NULL, 16);
-		}
-	}
-	return flag;
-	fclose(optab);
+// Function to search for an opcode in the opcode table
+int searchOpcode(char opcode[], int locationCounter) {
+    char notFound = -1;
+    char op[25], code[25];
+    FILE *opcodeTable = fopen("optab.txt", "r");
+
+    while (fscanf(opcodeTable, "%s %s", op, code) != EOF) {
+        if (strcmp(op, opcode) == 0) {
+            // Store the opcode in the opcode buffer
+            strcpy(opcodeBuffer[bufferIndex], code);
+            return (int)strtol(code, NULL, 16);
+        }
+    }
+
+    return notFound;
+    fclose(opcodeTable);
 }
 
-void main() {
-	int LOCCTR, rsize, START, FIRST;
+// Main function for Pass Two
+void passTwoAssembler() {
+    int locationCounter, recordSize, startAddress, programStartAddress;
 
-	// Input
-	FILE *intermediate = fopen("intermediate.txt","r");
-	FILE *length = fopen("length.txt","r");
-	
-	// Output
-	FILE *object = fopen("object.txt","w");
-	
-	char address[25], size[25], label[25], opcode[25], operand[25], flength[25];
-	fscanf(intermediate, "%s %s %s", label, opcode, operand);
+    FILE *intermediateFile = fopen("intermediate.txt", "r");
+    FILE *lengthFile = fopen("length.txt", "r");
+    FILE *objectFile = fopen("object.txt", "w");
 
-	fscanf(length, "%s", flength);
+    char address[25], size[25], label[25], opcode[25], operand[25], programLength[25];
+    fscanf(intermediateFile, "%s %s %s", label, opcode, operand);
 
-	
-	if (strcmp(opcode, "START") == 0) {
-		fprintf(object, "H^%s^%s^%s\n", label, operand, flength);
-	}
-	
-	LOCCTR = (int)strtol(operand, NULL, 16); 
-	FIRST = (int)strtol(operand, NULL, 16); 
-	while(feof(intermediate)!=1){
-		fscanf(intermediate, "%s %s %s %s %s", address, size, label, opcode, operand);
-		
-		int opStatus = searchOP(opcode, LOCCTR);
-			
-		if(count == 0) {
-			START = LOCCTR;
-			rsize = 0;
-		}
-			
-		int symStatus = searchSYM(operand, LOCCTR);
+    fscanf(lengthFile, "%s", programLength);
 
-		if (strcmp(opcode, "END") == 0) {
-				strcpy(OP[count],"");
-				strcpy(ADDR[count],"");
-				fprintf(object, "T^%x^%x^%s%s^%s%s^%s%s\n", START, rsize, OP[0],ADDR[0],OP[1],ADDR[1],OP[2],ADDR[2]);	
-				break;
-		} 
+    if (strcmp(opcode, "START") == 0) {
+        // Write the header record for the object file
+        fprintf(objectFile, "H^%s^%s^%s\n", label, operand, programLength);
+    }
 
-		if(opStatus != -1) rsize += 3; 
-		else if(strcmp(opcode, "WORD") == 0) {
-			strcpy(OP[count], operand);
-			rsize += 3;
-		} else if(strcmp(opcode, "RESW") == 0) {
-			//rsize += 3 * (int)strtol(operand, NULL, 16);
-		}	else if(strcmp(opcode, "RESB") == 0) {
-			//rsize += (int)strtol(operand, NULL, 16);
-		} else if(strcmp(opcode, "BYTE") == 0) {
-			int loop = 2, i = 0;
-   			char ascii[25];
-   			for(int loop = 2; loop < strlen(operand) - 1; i+=2) {
-      			sprintf((char*)(ascii + i), "%02X", operand[loop]);
-      			loop += 1;
-   			}
-   			ascii[i++] = '\0';
+    // Initialize location counter and program start address
+    locationCounter = (int)strtol(operand, NULL, 16);
+    programStartAddress = (int)strtol(operand, NULL, 16);
 
-   			strcat(OP[count], ascii); 			
-			rsize += strlen(operand) - 3;
-		} else if(opStatus == -1) {
-			printf("\nERROR : Invalid Code");
-			break;
-		} else if(symStatus == -1) {
-			printf("\nERROR : Invalid Symbol");
-			break;
-		} 
+    while (fscanf(intermediateFile, "%s %s %s %s %s", address, size, label, opcode, operand) != EOF) {
+        // Search for opcode and symbol
+        int opcodeStatus = searchOpcode(opcode, locationCounter);
+        int symbolStatus = searchSymbol(operand, locationCounter);
 
-			
-		if(count == 2) {
-			fprintf(object, "T^%x^%x^%s%s^%s%s^%s%s\n", START, rsize, OP[0],ADDR[0],OP[1],ADDR[1],OP[2],ADDR[2]);	
-			LOCCTR += rsize;
-			strcpy(OP[0],"");
-			strcpy(ADDR[0],"");
-			strcpy(OP[1],"");
-			strcpy(ADDR[1],"");
-			strcpy(OP[2],"");
-			strcpy(ADDR[2],"");
-		}
-		
-		if(strcmp(opcode, "END") == 0) break;
-		
-		count = (count + 1) % 3;
-	}		
-	
-	fprintf(object, "E^%x",FIRST);	
-		
-	fclose(intermediate);
-	fclose(object);
-	fclose(length);
+        // Initialize values when bufferIndex is 0
+        if (bufferIndex == 0) {
+            startAddress = locationCounter;
+            recordSize = 0;
+        }
+
+        if (strcmp(opcode, "END") == 0) {
+            // Write the last text record and end record
+            strcpy(opcodeBuffer[bufferIndex], "");
+            strcpy(addressBuffer[bufferIndex], "");
+            fprintf(objectFile, "T^%x^%x^%s%s^%s%s^%s%s\n", startAddress, recordSize,
+                    opcodeBuffer[0], addressBuffer[0], opcodeBuffer[1], addressBuffer[1], opcodeBuffer[2], addressBuffer[2]);
+            break;
+        }
+
+        // Update record size based on the instruction type
+        if (opcodeStatus != -1) {
+            recordSize += 3;
+        } else if (strcmp(opcode, "WORD") == 0) {
+            // Store the operand in the opcode buffer
+            strcpy(opcodeBuffer[bufferIndex], operand);
+            recordSize += 3;
+        } else if (strcmp(opcode, "RESW") == 0) {
+            // Uncomment and modify as needed if RESW should affect recordSize
+            // recordSize += 3 * strtol(operand, NULL, 16);
+        } else if (strcmp(opcode, "RESB") == 0) {
+            // Uncomment and modify as needed if RESB should affect recordSize
+            // recordSize += strtol(operand, NULL, 16);
+        } else if (strcmp(opcode, "BYTE") == 0) {
+            // Convert ASCII characters to hexadecimal
+            int loop = 2, i = 0;
+            char ascii[25];
+            for (int loop = 2; loop < strlen(operand) - 1; i += 2) {
+                sprintf((char *)(ascii + i), "%02X", operand[loop]);
+                loop += 1;
+            }
+            ascii[i++] = '\0';
+
+            // Concatenate the converted ASCII to the current opcode value
+            strcat(opcodeBuffer[bufferIndex], ascii);
+            recordSize += strlen(operand) - 3;
+        } else if (opcodeStatus == -1) {
+            printf("\nERROR : Invalid Code");
+            break;
+        } else if (symbolStatus == -1) {
+            printf("\nERROR : Invalid Symbol");
+            break;
+        }
+
+        // Write a text record every three instructions
+        if (bufferIndex == 2) {
+            fprintf(objectFile, "T^%x^%x^%s%s^%s%s^%s%s\n", startAddress, recordSize,
+                    opcodeBuffer[0], addressBuffer[0], opcodeBuffer[1], addressBuffer[1], opcodeBuffer[2], addressBuffer[2]);
+            locationCounter += recordSize;
+
+            // Reset opcodeBuffer and addressBuffer arrays
+            strcpy(opcodeBuffer[0], "");
+            strcpy(addressBuffer[0], "");
+            strcpy(opcodeBuffer[1], "");
+            strcpy(addressBuffer[1], "");
+            strcpy(opcodeBuffer[2], "");
+            strcpy(addressBuffer[2], "");
+        }
+
+        // Break if END is encountered
+        if (strcmp(opcode, "END") == 0) break;
+
+        // Increment bufferIndex in a circular manner
+        bufferIndex = (bufferIndex + 1) % 3;
+    }
+
+    // Write the end record for the object file
+    fprintf(objectFile, "E^%x", programStartAddress);
+
+    // Close the files
+    fclose(intermediateFile);
+    fclose(objectFile);
+    fclose(lengthFile);
 }
+
+int main() {
+    // Execute the Pass Two Assembler
+    passTwoAssembler();
+    return 0;
+}
+
